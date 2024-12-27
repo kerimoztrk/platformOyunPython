@@ -1,6 +1,5 @@
 import pgzrun
 import random
-
 from pgzhelper import *
 
 WIDTH = 800
@@ -13,26 +12,32 @@ brown = (71, 34, 18)
 red = (212, 47, 47)
 white = (255, 255, 255)
 
-houses = Actor('houses')
-houses.x = 500
-houses.y = 400
+class GameObject(Actor):
+    def __init__(self, image, x, y, **kwargs):
+        super().__init__(image)
+        self.x = x
+        self.y = y
+        self.__dict__.update(kwargs)
 
-bat = Actor('bat1')
-bat.scale = 0.5
-bat.x = 900
-bat.y = 100
-bat.images = ['bat1', 'bat2', 'bat3', 'bat4']
-bat.fps = 10
+class AnimatedObject(GameObject):
+    def __init__(self, image, x, y, images, fps, **kwargs):
+        super().__init__(image, x, y, **kwargs)
+        self.images = images
+        self.fps = fps
 
-zombie = Actor('walk1')
-zombie.x = 100
-zombie.y = 470
-zombie.images = ['walk1', 'walk2', 'walk3', 'walk4', 'walk5', 'walk6', 'walk7', 'walk8', 'walk9', 'walk10']
-zombie.fps = 60
+# Actor Instances
+houses = GameObject('houses', 500, 400)
 
-ghost = Actor('ghost1')
-ghost.x = random.randint(900, 5000)
-ghost.y = random.randint(250, 350)
+bat = AnimatedObject('bat1', 900, 100, ['bat1', 'bat2', 'bat3', 'bat4'], 10, scale=0.5)
+
+zombie = AnimatedObject('walk1', 100, 470, [
+    'walk1', 'walk2', 'walk3', 'walk4', 'walk5', 
+    'walk6', 'walk7', 'walk8', 'walk9', 'walk10'
+], 60)
+
+ghost = GameObject('ghost1', random.randint(900, 5000), random.randint(250, 350))
+
+platforms = [GameObject('platform', 200, 400), GameObject('platform', 400, 300)]
 
 obstacles = []
 obstaclesTime = 0
@@ -52,21 +57,19 @@ menuButtons = [
 ]
 musicOn = True
 
-
 def update():
     global velocity, score, obstaclesTime, gameOver, deathSound, gameState, musicOn
 
     if gameState == "play":
         zombie.next_image()
 
-        if keyboard.up and zombie.y == 470:
-            velocity = -22
-        zombie.y = zombie.y + velocity
-        velocity = velocity + gravity
+        if keyboard.up and is_on_ground():
+            velocity = -22  # Zıplama gücü
+        zombie.y += velocity
+        velocity += gravity
 
-        if zombie.y > 470:
+        if is_on_ground():
             velocity = 0
-            zombie.y = 470
 
         bat.animate()
         bat.x -= 3
@@ -88,10 +91,8 @@ def update():
 
         obstaclesTime += 1
 
-        if obstaclesTime > random.randint(60, 7000):
-            spike = Actor('spike')
-            spike.x = 860
-            spike.y = 500
+        if obstaclesTime > random.randint(100, 1200):  # Spike geliş süresi
+            spike = GameObject('spike', 860, 500)
             if not gameOver:
                 obstacles.append(spike)
                 obstaclesTime = 0
@@ -109,6 +110,12 @@ def update():
                 sounds.gameover.play()
             deathSound = True
 
+        # Platformların hareketi
+        for platform in platforms:
+            platform.x -= 3  # Platform hızı
+            if platform.x < -100:
+                platform.x = WIDTH + 100
+                platform.y = random.randint(250, 400)  # Platformun Y konumunu rastgele belirleyin
 
 def draw():
     global gameState
@@ -128,6 +135,8 @@ def draw():
         ghost.draw()
         screen.draw.filled_rect(Rect(0, 500, 1200, 800), (brown))
         zombie.draw()
+        for platform in platforms:
+            platform.draw()
         screen.draw.text('Score: ' + str(score), (20, 20), color=(red), fontsize=30)
         for spike in obstacles:
             spike.draw()
@@ -137,6 +146,13 @@ def draw():
         screen.draw.text("Skor: " + str(score), center=(WIDTH // 2, HEIGHT // 2), fontsize=40, color=white)
         screen.draw.text("Ana Menü için Enter'a basın", center=(WIDTH // 2, HEIGHT // 1.5), fontsize=30, color=white)
 
+def is_on_ground():
+    if zombie.y >= 470:
+        return True
+    for platform in platforms:
+        if zombie.colliderect(platform) and zombie.y < platform.y:
+            return True
+    return False
 
 def on_mouse_down(pos):
     global gameState, musicOn
@@ -157,13 +173,11 @@ def on_mouse_down(pos):
                 elif action == "exit":
                     exit()
 
-
 def on_key_down(key):
     global gameState
 
     if gameState == "gameover" and key == keys.RETURN:
         gameState = "menu"
-
 
 def reset_game():
     global obstacles, obstaclesTime, score, gameOver, deathSound, velocity
@@ -173,6 +187,5 @@ def reset_game():
     gameOver = False
     deathSound = False
     velocity = 0
-
 
 pgzrun.go()
